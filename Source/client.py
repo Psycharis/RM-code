@@ -1,5 +1,4 @@
 import socket, pickle
-from random import randrange
 from random import randint
 
 from sage.all import *
@@ -7,7 +6,7 @@ from sage.coding.reed_muller_code import BinaryReedMullerCode
 from sage.coding.reed_muller_code import ReedMullerVectorEncoder
 
 HOST = 'localhost'    # The remote host
-PORT = 50017              # The same port as used by the server
+PORT = 50217              # The same port as used by the server
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((HOST, PORT))
 
@@ -30,28 +29,27 @@ if __name__ == "__main__":
         else:
             print "Your input is invalid!"
 
-    while True:
-
-        RM = codes.BinaryReedMullerCode(r, m) # initialize reed-muller code
-        err = codes.decoders.LinearCodeNearestNeighborDecoder(RM)
-
-        max = RM.minimum_distance()
-        errw = raw_input("Give error weight smaller than " + str(max) + ": ")
-
-        if(errw is not '' and errw.isdigit()):
-            errw = int(errw)
-            if(errw < max):
-                break
-        else:
-            print "Your input is invalid!"
-
     if((m-r-1) >= 0 and (m-r-1) <= m):
         r = m-r-1
         print "** switching to dual reed-muller code"
 
+    RM = codes.BinaryReedMullerCode(r, m) # initialize reed-muller code
+    max = RM.minimum_distance() / 2
+
+    while True:
+
+        errw = raw_input("Give error weight less or equal than " + str(max) + ": ")
+
+        if(errw is not '' and errw.isdigit()):
+            errw = int(errw)
+            if(errw >= 0 and errw <= max):
+                break
+            else:
+                print "Your input is invalid!"
+        else:
+            print "Your input is invalid!"
 
     ENCODER = codes.encoders.ReedMullerVectorEncoder(RM) # initialize vector encoder
-    RM_MATRIX = ENCODER.generator_matrix() # generate vector matrix
 
     print "** minimum distance: " + str(RM.minimum_distance())
     print "** number of variables: " + str(RM.number_of_variables())
@@ -67,6 +65,7 @@ if __name__ == "__main__":
             pre_vector_array.append(randrange(0,2)) # create random bits in single array
 
         w2s.append(vector(pre_vector_array)) # append array as vector in w2s
+        print vector(pre_vector_array)
 
     for i in range(0, 22):
         if i < 20:
@@ -77,24 +76,15 @@ if __name__ == "__main__":
             E = m
         encoded_w2s.append(E)
 
-    for i in range(0, errw):
-        print "======================================"
-        rn = randint(0, 19)
-        rn2 = randint(0, len(ENCODER.encode(w2s[0])) - 1)
-        print encoded_w2s[rn][rn2]
 
-        encoded_w2s[rn][rn2] += 1
-        encoded_w2s[rn][rn2] = encoded_w2s[rn][rn2] % 2
-        print "======================================"
+    Chan = channels.StaticErrorRateChannel(RM.ambient_space(), errw) # add errors
+    random = randint(0, 19) # random number 0-20
 
-        print encoded_w2s[rn][rn2]
+    encoded_w2s[random] = Chan(encoded_w2s[random])
 
     data_string = pickle.dumps(encoded_w2s)
 
     s.send(data_string)
 
-    data = s.recv(8192)
-    data_arr = pickle.loads(data)
-
     s.close()
-    print 'Received', repr(data_arr)
+    print 'Message has been sent successfully'
