@@ -8,55 +8,45 @@ from sage.coding.reed_muller_code import ReedMullerVectorEncoder
 from sage.coding.linear_code import LinearCodeSyndromeDecoder
 
 HOST = ''                 # Symbolic name meaning all available interfaces
-PORT = 50017              # Arbitrary non-privileged port
+PORT = 50217              # Arbitrary non-privileged port
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.bind((HOST, PORT))
 s.listen(1)
 conn, addr = s.accept()
-print 'Connected by', addr
+print 'Message by', addr
 
 while 1:
-    recvd_data = conn.recv(8192)
+    recvd_data = conn.recv(32768)
     if not recvd_data: break
 
     data = pickle.loads(recvd_data)
 
     conn.sendall(recvd_data)
 
-r = data[20]
-m = data[21]
+r = data[20] # 'r' order value
+m = data[21] # 'm' code lenght value
 
 RM = codes.BinaryReedMullerCode(r, m) # initialize reed-muller code
-ENCODER = codes.encoders.ReedMullerVectorEncoder(RM) # initialize vector encoder
-err = codes.decoders.LinearCodeNearestNeighborDecoder(RM)
-D = RM.decoder()
 
-try:
-    vector = RM.syndrome(data[0])
-    print str()
-    flag = true
-    check = 0
-    for i in range(0, 20):
-        word = RM.syndrome(data[i])
-        for y in range(0, len(vector)):
-            if word[y] == 1:
-                check += 1
-        if check > 1:
-            flag = false
-            check = 0
+max_errors = min(RM.decoder().decoding_radius(), RM.minimum_distance()/2) - 1
 
-    unencode_w2s = []
+if max_errors < 0:
+    max_errors = 0
 
-    print
-    if flag:
-        for i in range(0, 20):
-            data[i] = err.decode_to_message(data[i])
-            E2 = data[i]
-            unencode_w2s.append(E2)
-            print str(unencode_w2s[i])
-    else:
-            print "The code is not understandable due to errors"
-except:
-    print "The code is not understandable due to errors"
+dec = RM.decoder('Syndrome', maximum_error_weight = max_errors)
+
+unencode_w2s = []
+
+for i in range(0, 20):
+
+    try:
+        E2 = dec.decode_to_message(data[i]) # decode the encoded message
+    except:
+        print "The word is not understandable due to errors"
+        continue
+
+    unencode_w2s.append(E2)
+    print str(E2)
+
 
 conn.close()
